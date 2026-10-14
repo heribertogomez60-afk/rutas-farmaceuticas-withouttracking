@@ -1,0 +1,878 @@
+#Distribución de productos farmacéuticos. Sin tracking. Elaborado por Heriberto Gómez, PhD. Email: heribertogomez60@gmail.com. Derechos #reservados. 
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Inteligente de Rutas Farmacéuticas - Topografía y Parciales</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a365d; }
+        .app-container { display: flex; flex-direction: column; height: 100vh; }
+        .header { background: linear-gradient(135deg, #1a365d 0%, #2b78e4 100%); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header .subtitle { font-size: 12px; opacity: 0.9; }
+        .main-layout { display: grid; grid-template-columns: 520px 1fr; flex: 1; overflow: hidden; }
+        .side-panel { background: #f8f9fa; border-right: 2px solid #dee2e6; display: flex; flex-direction: column; overflow: hidden; min-width: 520px; }
+        .panel-header { background: #2c3e50; color: white; padding: 10px 15px; font-size: 13px; font-weight: 600; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+        .form-wrapper { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; }
+        .form-wrapper::-webkit-scrollbar { width: 8px; }
+        .form-wrapper::-webkit-scrollbar-track { background: #e9ecef; }
+        .form-wrapper::-webkit-scrollbar-thumb { background: #2b78e4; border-radius: 4px; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: 11px; font-weight: 600; color: #495057; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .form-group input[type="text"], .form-group textarea, .form-group select { width: 100%; padding: 7px 9px; border: 1.5px solid #ced4da; border-radius: 5px; font-size: 12px; transition: border-color 0.2s; font-family: inherit; background: white; box-sizing: border-box; max-width: 100%; }
+        .form-group input[type="text"]:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #2b78e4; box-shadow: 0 0 0 2px rgba(43, 120, 228, 0.15); }
+        .form-group textarea { resize: vertical; min-height: 70px; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.4; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        /* Sección Origen */
+        .origen-section { background: #fff3cd; border: 1.5px solid #ffe69c; border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+        .origen-section-title { font-size: 11px; font-weight: 700; color: #664d03; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+        .origen-section input[type="text"], .destinos-section input[type="text"] { width: 100% !important; box-sizing: border-box !important; display: block !important; }
+        #centroNombre { width: 100% !important; padding: 8px 10px !important; font-size: 13px !important; font-weight: 500 !important; margin-bottom: 6px; }
+        .search-row { display: flex; gap: 5px; margin-bottom: 6px; }
+        .search-row input { flex: 1; padding: 6px 8px; border: 1.5px solid #ced4da; border-radius: 4px; font-size: 11px; min-width: 0; }
+        .search-row input:focus { outline: none; border-color: #2b78e4; }
+        .btn-icon { padding: 6px 10px; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
+        .btn-search { background: #0d6efd; color: white; }
+        .btn-search:hover:not(:disabled) { background: #0b5ed7; }
+        .btn-search:disabled { background: #6c757d; cursor: not-allowed; }
+        .btn-click-mode { width: 100%; padding: 7px; background: #198754; color: white; margin-bottom: 6px; font-size: 11px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        .btn-click-mode:hover { background: #157347; }
+        .btn-click-mode.active { background: #dc3545; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.5); } 50% { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); } }
+        .coords-display { background: white; border: 1px solid #ced4da; border-radius: 4px; padding: 6px 8px; font-family: 'Courier New', monospace; font-size: 10.5px; color: #495057; margin-top: 6px; word-break: break-all; }
+        .coords-display .label { color: #6c757d; font-family: 'Segoe UI', sans-serif; font-size: 9px; text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 2px; }
+        .coords-display .value { color: #0a58ca; font-weight: 600; }
+        .address-display { background: #e7f1ff; border: 1px solid #b6d4fe; border-radius: 4px; padding: 6px 8px; font-size: 11px; color: #084298; margin-top: 6px; display: none; word-break: break-word; }
+        .address-display.active { display: block; }
+        
+        /* Sección Destinos */
+        .destinos-section { background: #e7f1ff; border: 1.5px solid #b6d4fe; border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+        .destinos-section-title { font-size: 11px; font-weight: 700; color: #0a58ca; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+        .click-mode-hint { font-size: 10px; color: #6c757d; margin-bottom: 8px; font-style: italic; text-align: center; }
+        .destinos-list { max-height: 140px; overflow-y: auto; background: white; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 6px; }
+        .destinos-list::-webkit-scrollbar { width: 6px; }
+        .destinos-list::-webkit-scrollbar-thumb { background: #2b78e4; border-radius: 3px; }
+        .destino-item { display: flex; align-items: center; padding: 5px 8px; border-bottom: 1px solid #f0f0f0; font-size: 11px; gap: 6px; }
+        .destino-item:last-child { border-bottom: none; }
+        .destino-item .num { background: #2b78e4; color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+        .destino-item .name { flex: 1; color: #2c3e50; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .destino-item .coords { font-size: 9px; color: #6c757d; font-family: 'Courier New', monospace; flex-shrink: 0; }
+        .destino-item .btn-remove { background: transparent; border: none; color: #dc3545; cursor: pointer; font-size: 14px; padding: 0 4px; font-weight: bold; flex-shrink: 0; }
+        .destino-item .btn-remove:hover { color: #a71d2a; }
+        .empty-list { padding: 12px; text-align: center; color: #6c757d; font-size: 11px; font-style: italic; }
+        .section-divider { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; font-size: 10px; color: #6c757d; text-transform: uppercase; font-weight: 600; }
+        .section-divider::before, .section-divider::after { content: ''; flex: 1; height: 1px; background: #dee2e6; }
+        
+        /* Botones principales */
+        .btn-container { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: #e9ecef; border-top: 1px solid #ced4da; flex-shrink: 0; }
+        .btn-row { display: flex; gap: 6px; }
+        button.btn-main { flex: 1; padding: 9px 10px; border: none; border-radius: 5px; font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.3px; }
+        .btn-primary { background: linear-gradient(135deg, #2b78e4 0%, #1a5bb8 100%); color: white; box-shadow: 0 2px 6px rgba(43, 120, 228, 0.4); }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(43, 120, 228, 0.5); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; }
+        .btn-export { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; box-shadow: 0 2px 6px rgba(40, 167, 69, 0.4); }
+        .btn-export:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(40, 167, 69, 0.5); }
+        .btn-export:disabled { opacity: 0.5; cursor: not-allowed; background: #adb5bd; box-shadow: none; }
+        
+        /* Panel principal */
+        .main-panel { display: flex; flex-direction: column; overflow: hidden; background: #e9ecef; min-width: 0; }
+        .results-area { display: none; flex-direction: column; background: white; border-bottom: 2px solid #dee2e6; max-height: 40%; overflow-y: auto; }
+        .results-area.active { display: flex; }
+        .results-area::-webkit-scrollbar { width: 8px; }
+        .results-area::-webkit-scrollbar-thumb { background: #2b78e4; border-radius: 4px; }
+        .info-card { padding: 12px 16px; border-bottom: 1px solid #e9ecef; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+        .info-item { background: #f8f9fa; padding: 8px 10px; border-radius: 6px; text-align: center; border-left: 3px solid #2b78e4; }
+        .info-item strong { display: block; color: #6c757d; font-size: 9px; text-transform: uppercase; margin-bottom: 3px; letter-spacing: 0.3px; }
+        .info-item span { font-size: 13px; font-weight: 700; color: #2c3e50; word-break: break-word; }
+        .info-item.highlight { background: linear-gradient(135deg, #2b78e4 0%, #1a5bb8 100%); color: white; border-left-color: #1a5bb8; }
+        .info-item.highlight strong { color: rgba(255,255,255,0.9); }
+        .info-item.highlight span { color: white; }
+        .info-item.danger { background: linear-gradient(135deg, #d9381e 0%, #b02a15 100%); color: white; border-left-color: #b02a15; }
+        .info-item.danger strong { color: rgba(255,255,255,0.9); }
+        .info-item.danger span { color: white; }
+        .stops-list { padding: 10px 16px; }
+        .stops-list h3 { color: #2c3e50; margin-bottom: 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+        .stops-list ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px; }
+        .stops-list li { background: #f8f9fa; padding: 8px 10px; border-radius: 6px; border-left: 3px solid #2b78e4; font-size: 12px; }
+        .stops-list li strong { color: #2b78e4; font-size: 12px; display: block; margin-bottom: 3px; }
+        .stops-list li .details { color: #495057; font-size: 11px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .stops-list li .details span { background: white; padding: 2px 6px; border-radius: 3px; border: 1px solid #dee2e6; }
+        #map { flex: 1; width: 100%; min-height: 0; }
+        .loading { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 25px 40px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 1000; text-align: center; }
+        .loading.active { display: block; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #2b78e4; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error-message { display: none; background: #fee; border: 2px solid #fcc; color: #c33; padding: 10px 15px; margin: 10px 12px; border-radius: 5px; font-size: 12px; }
+        .error-message.active { display: block; }
+        .map-container { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .map-mode-indicator { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #dc3545; color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; z-index: 500; display: none; box-shadow: 0 2px 10px rgba(0,0,0,0.3); animation: pulse 1.5s infinite; }
+        .map-mode-indicator.active { display: block; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #28a745; color: white; padding: 14px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); font-size: 13px; font-weight: 600; z-index: 2000; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; max-width: 320px; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .click-mode-cursor { cursor: crosshair !important; }
+        .click-mode-cursor .leaflet-interactive { cursor: crosshair !important; }
+        
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); min-width: 320px; max-width: 90%; }
+        .modal-box h3 { color: #2c3e50; margin-bottom: 12px; font-size: 15px; }
+        .modal-box .coords-display-modal { background: #f8f9fa; padding: 8px 10px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; color: #495057; margin-bottom: 12px; border-left: 3px solid #2b78e4; }
+        .modal-box input { width: 100%; padding: 9px 10px; border: 1.5px solid #ced4da; border-radius: 5px; font-size: 13px; margin-bottom: 14px; box-sizing: border-box; }
+        .modal-box input:focus { outline: none; border-color: #2b78e4; }
+        .modal-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+        .modal-buttons button { padding: 8px 16px; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .modal-btn-cancel { background: #6c757d; color: white; }
+        .modal-btn-confirm { background: #2b78e4; color: white; }
+        
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+            .side-panel { max-height: 45vh; border-right: none; border-bottom: 2px solid #dee2e6; min-width: 100%; }
+            .header h1 { font-size: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <div>
+                <h1>🚚 Sistema Inteligente de Rutas Farmacéuticas</h1>
+                <div class="subtitle">Análisis Topográfico · Tiempos Parciales · Control Logístico Avanzado</div>
+            </div>
+        </div>
+        
+        <div class="main-layout">
+            <aside class="side-panel">
+                <div class="panel-header">
+                    <span>⚙️</span>
+                    <span>Configuración de Ruta</span>
+                </div>
+                
+                <div class="form-wrapper">
+                    <!-- SECCIÓN ORIGEN -->
+                    <div class="origen-section">
+                        <div class="origen-section-title">🏢 Origen (Centro de Distribución)</div>
+                        <label style="font-size:10px; color:#664d03; margin-bottom:3px; display:block; text-transform:uppercase; font-weight:600;">Nombre del Negocio / Centro</label>
+                        <input type="text" id="centroNombre" value="Centro de Distribución Principal">
+                        <label style="font-size:10px; color:#664d03; margin-bottom:3px; display:block; text-transform:uppercase; font-weight:600;">🔍 Buscar por Dirección</label>
+                        <div class="search-row">
+                            <input type="text" id="inputDireccionOrigen" placeholder="Ej: Cra 15 #27-45, Bucaramanga">
+                            <button class="btn-icon btn-search" id="btnBuscarOrigen">Buscar</button>
+                        </div>
+                        <button class="btn-click-mode" id="btnClickModeOrigen">🖱️ Activar: Click en Mapa para Origen</button>
+                        <div class="address-display" id="origenAddressDisplay"><b>📍 Dirección:</b> <span id="origenAddressText">-</span></div>
+                        <div class="coords-display">
+                            <span class="label">Coordenadas Calculadas (Lon, Lat)</span>
+                            <span class="value" id="origenCoordsDisplay">-72.2241, 7.7745</span>
+                        </div>
+                    </div>
+                    
+                    <!-- SECCIÓN DESTINOS -->
+                    <div class="destinos-section">
+                        <div class="destinos-section-title">📍 Agregar Destinos</div>
+                        <label style="font-size:10px; color:#495057; margin-bottom:3px; display:block; text-transform:uppercase; font-weight:600;">🔍 Buscar por Dirección</label>
+                        <div class="search-row">
+                            <input type="text" id="inputDireccion" placeholder="Ej: Cra 27 #8-32, Bucaramanga">
+                            <button class="btn-icon btn-search" id="btnBuscar">Buscar</button>
+                        </div>
+                        <button class="btn-click-mode" id="btnClickMode">🖱️ Activar: Click en Mapa</button>
+                        <div class="click-mode-hint" id="clickHint" style="display:none;">Haga click en cualquier punto del mapa para agregar un destino</div>
+                        <label style="font-size:10px; color:#495057; margin-bottom:3px; display:block; text-transform:uppercase; font-weight:600;">📋 Destinos Agregados (<span id="destinosCount">0</span>)</label>
+                        <div class="destinos-list" id="destinosList">
+                            <div class="empty-list">Sin destinos. Use búsqueda o click en mapa.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="section-divider">O edición manual</div>
+                    
+                    <div class="form-group">
+                        <label for="destinos">Destinos (Texto - Nombre | Lon, Lat)</label>
+                        <textarea id="destinos" placeholder="Se actualiza automáticamente. También puede editar manualmente."></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="vehiculo">Transporte</label>
+                            <select id="vehiculo">
+                                <option value="0">Camión (25 km/h)</option>
+                                <option value="1">Furgoneta (30 km/h)</option>
+                                <option value="2" selected>Moto (35 km/h)</option>
+                                <option value="3">Bicicleta (12 km/h)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="topografia">Topografía</label>
+                            <select id="topografia">
+                                <option value="0">Plano (1.0)</option>
+                                <option value="1" selected>Colinas (0.8)</option>
+                                <option value="2">Andino (0.65)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="conductor">Conductor</label>
+                            <input type="text" id="conductor" value="Carlos Mendoza">
+                        </div>
+                        <div class="form-group">
+                            <label for="placa">Placa / ID</label>
+                            <input type="text" id="placa" value="ABC-1234">
+                        </div>
+                    </div>
+                    
+                    <div class="error-message" id="errorMessage"></div>
+                </div>
+                
+                <div class="btn-container">
+                    <div class="btn-row">
+                        <button class="btn-main btn-primary" id="btnCalcular">️ Calcular</button>
+                        <button class="btn-main btn-secondary" id="btnLimpiar">🗑️ Limpiar</button>
+                    </div>
+                    <button class="btn-main btn-export" id="btnExportar" disabled>📥 Exportar Mapa HTML (Compartible)</button>
+                </div>
+            </aside>
+            
+            <main class="main-panel">
+                <div class="results-area" id="results">
+                    <div class="info-card">
+                        <div class="info-grid">
+                            <div class="info-item"><strong>Origen</strong><span id="infoOrigen"></span></div>
+                            <div class="info-item"><strong>Vehículo</strong><span id="infoVehiculo"></span></div>
+                            <div class="info-item"><strong>Conductor</strong><span id="infoConductor"></span></div>
+                            <div class="info-item"><strong>Placa/ID</strong><span id="infoPlaca"></span></div>
+                            <div class="info-item highlight"><strong>Distancia Total</strong><span id="infoDistancia"></span></div>
+                            <div class="info-item danger"><strong>Tiempo Total</strong><span id="infoTiempo"></span></div>
+                        </div>
+                    </div>
+                    <div class="stops-list">
+                        <h3>📍 Detalle de Tiempos y Distancias Parciales</h3>
+                        <ul id="stopsList"></ul>
+                    </div>
+                </div>
+                
+                <div class="map-container">
+                    <div id="map"></div>
+                    <div class="map-mode-indicator" id="mapModeIndicator">🖱️ MODO CAPTURA ACTIVO - Click en el mapa</div>
+                    <div class="loading" id="loading">
+                        <div class="spinner"></div>
+                        <div style="font-size: 13px; color: #2c3e50; font-weight: 600;">Calculando ruta...</div>
+                        <div style="font-size: 11px; color: #6c757d; margin-top: 4px;">Consultando OSRM</div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Modal destinos -->
+    <div class="modal-overlay" id="modalDestino">
+        <div class="modal-box">
+            <h3>📍 Nuevo Destino</h3>
+            <div class="coords-display-modal" id="modalCoords">Lat: 0.0000, Lon: 0.0000</div>
+            <input type="text" id="modalNombre" placeholder="Nombre del destino (ej: Farmacia Central)">
+            <div class="modal-buttons">
+                <button class="modal-btn-cancel" id="modalCancel">Cancelar</button>
+                <button class="modal-btn-confirm" id="modalConfirm">Agregar Destino</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal origen -->
+    <div class="modal-overlay" id="modalOrigen">
+        <div class="modal-box">
+            <h3> Definir Origen (Centro de Distribución)</h3>
+            <div class="coords-display-modal" id="modalOrigenCoords">Lat: 0.0000, Lon: 0.0000</div>
+            <input type="text" id="modalOrigenNombre" placeholder="Nombre del negocio (ej: Distribuidora Central)">
+            <div class="modal-buttons">
+                <button class="modal-btn-cancel" id="modalOrigenCancel">Cancelar</button>
+                <button class="modal-btn-confirm" id="modalOrigenConfirm">Confirmar Origen</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map = null;
+        let lastRouteData = null;
+        let destinosAgregados = [];
+        let markersDestinos = [];
+        let markerTemporal = null;
+        let clickModeActive = false;
+        let destinoIdCounter = 0;
+        let pendingClickCoords = null;
+        
+        let origenData = { nombre: "Centro de Distribución Principal", direccion: null, lon: -72.2241, lat: 7.7745 };
+        let markerOrigen = null;
+        let clickModeOrigenActive = false;
+        let pendingOrigenCoords = null;
+        
+        // ============ ICONOS PERSONALIZADOS ============
+        // Icono ROJO para el Centro de Distribución (Origen)
+        const iconoOrigenRojo = L.divIcon({
+            className: 'origen-marker',
+            html: `<div style="
+                background: #dc3545;
+                width: 32px;
+                height: 32px;
+                border-radius: 50% 50% 50% 0;
+                transform: rotate(-45deg);
+                border: 3px solid white;
+                box-shadow: 0 0 8px rgba(220, 53, 69, 0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            "><span style="transform: rotate(45deg); color: white; font-size: 14px; font-weight: bold;"></span></div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+        
+        // Icono AZUL para los destinos (paradas)
+        const iconoDestinoAzul = L.divIcon({
+            className: 'destino-marker',
+            html: `<div style="
+                background: #2b78e4;
+                width: 28px;
+                height: 28px;
+                border-radius: 50% 50% 50% 0;
+                transform: rotate(-45deg);
+                border: 3px solid white;
+                box-shadow: 0 0 6px rgba(43, 120, 228, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            "><span style="transform: rotate(45deg); color: white; font-size: 12px; font-weight: bold;">📍</span></div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 28],
+            popupAnchor: [0, -28]
+        });
+        
+        function haversineDistance(lon1, lat1, lon2, lat2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        function nearestNeighborSort(origin, destinations) {
+            const sorted = [];
+            const remaining = [...destinations];
+            let currentPoint = origin;
+            while (remaining.length > 0) {
+                let nearest = null;
+                let minDist = Infinity;
+                for (const dest of remaining) {
+                    const dist = haversineDistance(currentPoint[0], currentPoint[1], dest.lon, dest.lat);
+                    if (dist < minDist) { minDist = dist; nearest = dest; }
+                }
+                sorted.push(nearest);
+                remaining.splice(remaining.indexOf(nearest), 1);
+                currentPoint = [nearest.lon, nearest.lat];
+            }
+            return sorted;
+        }
+        
+        async function getRouteFromOSRM(p1, p2) {
+            const url = `https://router.project-osrm.org/route/v1/driving/${p1[0]},${p1[1]};${p2[0]},${p2[1]}?overview=full&geometries=geojson`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                    return { distance: data.routes[0].distance, coordinates: data.routes[0].geometry.coordinates, success: true };
+                }
+            } catch (error) { console.error('Error OSRM:', error); }
+            return { success: false };
+        }
+        
+        // ============ GESTIÓN DEL ORIGEN ============
+        function actualizarOrigen(nombre, lon, lat, direccion = null) {
+            origenData = { nombre, lon, lat, direccion };
+            document.getElementById('origenCoordsDisplay').textContent = `${lon.toFixed(4)}, ${lat.toFixed(4)}`;
+            const addrDisplay = document.getElementById('origenAddressDisplay');
+            const addrText = document.getElementById('origenAddressText');
+            if (direccion) { addrText.textContent = direccion; addrDisplay.classList.add('active'); }
+            else { addrDisplay.classList.remove('active'); }
+            if (markerOrigen) map.removeLayer(markerOrigen);
+            markerOrigen = L.marker([lat, lon], { icon: iconoOrigenRojo, title: nombre }).addTo(map)
+                .bindPopup(`<b>🏢 ${nombre}</b><br>${direccion || 'Coordenadas: ' + lat.toFixed(5) + ', ' + lon.toFixed(5)}`);
+            map.setView([lat, lon], 14);
+        }
+        
+        async function buscarDireccionOrigen() {
+            const input = document.getElementById('inputDireccionOrigen');
+            const btn = document.getElementById('btnBuscarOrigen');
+            const direccion = input.value.trim();
+            if (!direccion) { showToast('⚠️ Ingrese una dirección para buscar', '#ffc107'); return; }
+            btn.disabled = true; btn.textContent = '...';
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(direccion)}&limit=1&addressdetails=1`;
+                const response = await fetch(url, { headers: { 'User-Agent': 'SistemaRutasFarmaceuticas/1.0 (educativo)' } });
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const result = data[0];
+                    const lat = parseFloat(result.lat);
+                    const lon = parseFloat(result.lon);
+                    const nombreDisplay = result.display_name.split(',').slice(0, 3).join(',');
+                    const nombreNegocio = document.getElementById('centroNombre').value.trim() || "Centro de Distribución";
+                    actualizarOrigen(nombreNegocio, lon, lat, nombreDisplay);
+                    showToast(`📍 Origen encontrado: ${nombreDisplay.split(',')[0]}`, '#28a745');
+                } else { showToast('❌ No se encontró la dirección', '#dc3545'); }
+            } catch (error) { console.error('Error geocoding:', error); showToast('❌ Error al buscar dirección', '#dc3545'); }
+            finally { btn.disabled = false; btn.textContent = 'Buscar'; }
+        }
+        
+        function toggleClickModeOrigen() {
+            clickModeOrigenActive = !clickModeOrigenActive;
+            const btn = document.getElementById('btnClickModeOrigen');
+            const indicator = document.getElementById('mapModeIndicator');
+            const mapContainer = document.getElementById('map');
+            if (clickModeOrigenActive) {
+                if (clickModeActive) toggleClickMode();
+                btn.textContent = '🛑 Desactivar Modo Click Origen';
+                btn.classList.add('active');
+                indicator.textContent = '🏢 MODO CAPTURA ORIGEN - Click en el mapa';
+                indicator.classList.add('active');
+                mapContainer.classList.add('click-mode-cursor');
+            } else {
+                btn.textContent = '🖱️ Activar: Click en Mapa para Origen';
+                btn.classList.remove('active');
+                indicator.classList.remove('active');
+                mapContainer.classList.remove('click-mode-cursor');
+                if (markerTemporal) { map.removeLayer(markerTemporal); markerTemporal = null; }
+            }
+        }
+        
+        function confirmarOrigenModal() {
+            const nombre = document.getElementById('modalOrigenNombre').value.trim();
+            if (!nombre) { showToast('️ Ingrese un nombre para el origen', '#ffc107'); return; }
+            if (pendingOrigenCoords) {
+                document.getElementById('centroNombre').value = nombre;
+                actualizarOrigen(nombre, pendingOrigenCoords.lon, pendingOrigenCoords.lat);
+                if (markerTemporal) { map.removeLayer(markerTemporal); markerTemporal = null; }
+                document.getElementById('modalOrigen').classList.remove('active');
+                pendingOrigenCoords = null;
+                showToast(`✅ Origen definido: ${nombre}`, '#28a745');
+            }
+        }
+        
+        function cancelarOrigenModal() {
+            document.getElementById('modalOrigen').classList.remove('active');
+            if (markerTemporal) { map.removeLayer(markerTemporal); markerTemporal = null; }
+            pendingOrigenCoords = null;
+        }
+        
+        // ============ GESTIÓN DE DESTINOS ============
+        function agregarDestino(nombre, lon, lat) {
+            const id = ++destinoIdCounter;
+            const destino = { nombre, lon, lat, id };
+            destinosAgregados.push(destino);
+            const marker = L.marker([lat, lon], { icon: iconoDestinoAzul, title: nombre }).addTo(map)
+                .bindPopup(`<b>📍 ${nombre}</b><br>Lat: ${lat.toFixed(5)}<br>Lon: ${lon.toFixed(5)}`);
+            markersDestinos.push({ id, marker });
+            renderizarListaDestinos();
+            sincronizarTextarea();
+            showToast(`✅ Destino agregado: ${nombre}`, '#28a745');
+        }
+        
+        function eliminarDestino(id) {
+            destinosAgregados = destinosAgregados.filter(d => d.id !== id);
+            const markerInfo = markersDestinos.find(m => m.id === id);
+            if (markerInfo) { map.removeLayer(markerInfo.marker); markersDestinos = markersDestinos.filter(m => m.id !== id); }
+            renderizarListaDestinos();
+            sincronizarTextarea();
+        }
+        
+        function renderizarListaDestinos() {
+            const list = document.getElementById('destinosList');
+            const count = document.getElementById('destinosCount');
+            count.textContent = destinosAgregados.length;
+            if (destinosAgregados.length === 0) { list.innerHTML = '<div class="empty-list">Sin destinos. Use búsqueda o click en mapa.</div>'; return; }
+            list.innerHTML = destinosAgregados.map((d, idx) => `
+                <div class="destino-item">
+                    <div class="num">${idx + 1}</div>
+                    <div class="name" title="${d.nombre}">${d.nombre}</div>
+                    <div class="coords">${d.lat.toFixed(3)}, ${d.lon.toFixed(3)}</div>
+                    <button class="btn-remove" onclick="eliminarDestino(${d.id})" title="Eliminar">×</button>
+                </div>
+            `).join('');
+        }
+        
+        function sincronizarTextarea() {
+            document.getElementById('destinos').value = destinosAgregados.map(d => `${d.nombre} | ${d.lon.toFixed(4)}, ${d.lat.toFixed(4)}`).join('\n');
+        }
+        
+        function parsearDestinosDesdeTextarea() {
+            const textarea = document.getElementById('destinos').value.trim();
+            if (!textarea) return [];
+            const lineas = textarea.split('\n').filter(l => l.trim() && l.includes('|'));
+            const destinos = [];
+            for (const linea of lineas) {
+                const partes = linea.split('|');
+                if (partes.length < 2) continue;
+                const nombre = partes[0].trim();
+                const coordsStr = partes[1].trim().split(',');
+                if (coordsStr.length < 2) continue;
+                const lon = parseFloat(coordsStr[0].trim());
+                const lat = parseFloat(coordsStr[1].trim());
+                if (!isNaN(lon) && !isNaN(lat)) destinos.push({ nombre, lon, lat });
+            }
+            return destinos;
+        }
+        
+        async function buscarDireccion() {
+            const input = document.getElementById('inputDireccion');
+            const btn = document.getElementById('btnBuscar');
+            const direccion = input.value.trim();
+            if (!direccion) { showToast('⚠️ Ingrese una dirección para buscar', '#ffc107'); return; }
+            btn.disabled = true; btn.textContent = '...';
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(direccion)}&limit=1&addressdetails=1`;
+                const response = await fetch(url, { headers: { 'User-Agent': 'SistemaRutasFarmaceuticas/1.0 (educativo)' } });
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const result = data[0];
+                    const lat = parseFloat(result.lat);
+                    const lon = parseFloat(result.lon);
+                    const nombre = result.display_name.split(',')[0];
+                    map.setView([lat, lon], 16);
+                    agregarDestino(nombre, lon, lat);
+                    input.value = '';
+                    showToast(`📍 Dirección encontrada: ${nombre}`, '#28a745');
+                } else { showToast('❌ No se encontró la dirección', '#dc3545'); }
+            } catch (error) { console.error('Error geocoding:', error); showToast('❌ Error al buscar dirección', '#dc3545'); }
+            finally { btn.disabled = false; btn.textContent = 'Buscar'; }
+        }
+        
+        function toggleClickMode() {
+            clickModeActive = !clickModeActive;
+            const btn = document.getElementById('btnClickMode');
+            const indicator = document.getElementById('mapModeIndicator');
+            const hint = document.getElementById('clickHint');
+            const mapContainer = document.getElementById('map');
+            if (clickModeActive) {
+                if (clickModeOrigenActive) toggleClickModeOrigen();
+                btn.textContent = '🛑 Desactivar Modo Click';
+                btn.classList.add('active');
+                indicator.textContent = '📍 MODO CAPTURA DESTINO - Click en el mapa';
+                indicator.classList.add('active');
+                hint.style.display = 'block';
+                mapContainer.classList.add('click-mode-cursor');
+            } else {
+                btn.textContent = '️ Activar: Click en Mapa';
+                btn.classList.remove('active');
+                indicator.classList.remove('active');
+                hint.style.display = 'none';
+                mapContainer.classList.remove('click-mode-cursor');
+                if (markerTemporal) { map.removeLayer(markerTemporal); markerTemporal = null; }
+            }
+        }
+        
+        function onMapClick(e) {
+            if (!clickModeActive && !clickModeOrigenActive) return;
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            if (markerTemporal) map.removeLayer(markerTemporal);
+            markerTemporal = L.marker([lat, lon], { opacity: 0.6 }).addTo(map);
+            if (clickModeOrigenActive) {
+                pendingOrigenCoords = { lat, lon };
+                document.getElementById('modalOrigenCoords').textContent = `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}`;
+                document.getElementById('modalOrigenNombre').value = document.getElementById('centroNombre').value || '';
+                document.getElementById('modalOrigen').classList.add('active');
+                setTimeout(() => document.getElementById('modalOrigenNombre').focus(), 100);
+            } else if (clickModeActive) {
+                pendingClickCoords = { lat, lon };
+                document.getElementById('modalCoords').textContent = `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}`;
+                document.getElementById('modalNombre').value = '';
+                document.getElementById('modalDestino').classList.add('active');
+                setTimeout(() => document.getElementById('modalNombre').focus(), 100);
+            }
+        }
+        
+        function confirmarDestinoModal() {
+            const nombre = document.getElementById('modalNombre').value.trim();
+            if (!nombre) { showToast('⚠️ Ingrese un nombre para el destino', '#ffc107'); return; }
+            if (pendingClickCoords) {
+                agregarDestino(nombre, pendingClickCoords.lon, pendingClickCoords.lat);
+                if (markerTemporal) { map.removeLayer(markerTemporal); markerTemporal = null; }
+                document.getElementById('modalDestino').classList.remove('active');
+                pendingClickCoords = null;
+            }
+        }
+        
+        function cancelarDestinoModal() {
+            document.getElementById('modalDestino').classList.remove('active');
+            if (markerTemporal) { map.removeLayer(markerTemporal); markerTemporal = null; }
+            pendingClickCoords = null;
+        }
+        
+        // ============ PROCESAMIENTO DE RUTA ============
+        async function procesarRuta() {
+            const errorMessage = document.getElementById('errorMessage');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const btnCalcular = document.getElementById('btnCalcular');
+            const btnExportar = document.getElementById('btnExportar');
+            
+            errorMessage.classList.remove('active');
+            results.classList.remove('active');
+            loading.classList.add('active');
+            btnCalcular.disabled = true;
+            btnExportar.disabled = true;
+            
+            try {
+                const centro = document.getElementById('centroNombre').value.trim() || "Centro de Distribución";
+                const vehiculoIdx = parseInt(document.getElementById('vehiculo').value);
+                const topografiaIdx = parseInt(document.getElementById('topografia').value);
+                const conductor = document.getElementById('conductor').value.trim();
+                const placa = document.getElementById('placa').value.trim();
+                const coordsOrigen = [origenData.lon, origenData.lat];
+                
+                if (isNaN(coordsOrigen[0]) || isNaN(coordsOrigen[1])) throw new Error('Coordenadas de origen inválidas.');
+                
+                let destinosLista;
+                if (destinosAgregados.length > 0) destinosLista = destinosAgregados.map(d => ({ nombre: d.nombre, lon: d.lon, lat: d.lat }));
+                else destinosLista = parsearDestinosDesdeTextarea();
+                
+                if (destinosLista.length === 0) throw new Error('Debe agregar al menos un destino.');
+                
+                const velocidadesBase = {0: 25.0, 1: 30.0, 2: 35.0, 3: 12.0};
+                const factoresTopo = {0: 1.0, 1: 0.80, 2: 0.65};
+                const vehiculoTextos = { 0: "Camión de Carga Pesada (Urbano 25 km/h)", 1: "Vehículo Liviano / Furgoneta (Urbano 30 km/h)", 2: "Motocicleta (Urbano 35 km/h)", 3: "Bicicleta (Urbano 12 km/h)" };
+                const topografiaTextos = { 0: "Plano / Urbano Estándar (Factor 1.0)", 1: "Montañoso Moderado / Colinas (Factor 0.8)", 2: "Montañoso Extremo / Alta Pendiente Andina (Factor 0.65)" };
+                
+                const velBaseKmh = velocidadesBase[vehiculoIdx] || 25.0;
+                const factorTopo = factoresTopo[topografiaIdx] || 1.0;
+                const velEfectivaKmh = velBaseKmh * factorTopo;
+                
+                const destinosOrdenados = nearestNeighborSort(coordsOrigen, destinosLista);
+                const roadCoordsLonLat = [];
+                let totalDistanciaMetros = 0.0;
+                const tramosDetalle = [];
+                const puntosSecuencia = [coordsOrigen, ...destinosOrdenados.map(d => [d.lon, d.lat])];
+                
+                for (let i = 0; i < puntosSecuencia.length - 1; i++) {
+                    const p1 = puntosSecuencia[i];
+                    const p2 = puntosSecuencia[i + 1];
+                    const routeResult = await getRouteFromOSRM(p1, p2);
+                    let distTramoM = 0.0;
+                    let coordsTramo = [];
+                    if (routeResult.success) { distTramoM = routeResult.distance; coordsTramo = routeResult.coordinates; }
+                    else { distTramoM = haversineDistance(p1[0], p1[1], p2[0], p2[1]) * 1.25 * 1000.0; coordsTramo = [p1, p2]; }
+                    totalDistanciaMetros += distTramoM;
+                    const distParcialKm = distTramoM / 1000.0;
+                    const tiempoParcialMin = Math.round((distParcialKm / velEfectivaKmh) * 60);
+                    tramosDetalle.push({ dist_km: Math.round(distParcialKm * 100) / 100, tiempo_min: tiempoParcialMin });
+                    if (roadCoordsLonLat.length > 0 && coordsTramo.length > 0) coordsTramo = coordsTramo.slice(1);
+                    roadCoordsLonLat.push(...coordsTramo);
+                }
+                
+                const distVialKm = totalDistanciaMetros / 1000.0;
+                const tiempoTotalMin = Math.round((distVialKm / velEfectivaKmh) * 60);
+                
+                lastRouteData = { centro, direccionOrigen: origenData.direccion, coordsOrigen, vehiculoText: vehiculoTextos[vehiculoIdx], topografiaText: topografiaTextos[topografiaIdx], conductor, placa, distVialKm: Math.round(distVialKm * 100) / 100, tiempoTotalMin, velEfectivaKmh: Math.round(velEfectivaKmh * 100) / 100, destinosOrdenados, tramosDetalle, roadCoordsLonLat, fecha: new Date().toLocaleString('es-ES') };
+                
+                loading.classList.remove('active');
+                results.classList.add('active');
+                btnCalcular.disabled = false;
+                btnExportar.disabled = false;
+                
+                document.getElementById('infoOrigen').textContent = centro;
+                document.getElementById('infoVehiculo').textContent = vehiculoTextos[vehiculoIdx];
+                document.getElementById('infoConductor').textContent = conductor;
+                document.getElementById('infoPlaca').textContent = placa;
+                document.getElementById('infoDistancia').textContent = `${Math.round(distVialKm * 100) / 100} km`;
+                document.getElementById('infoTiempo').textContent = `${tiempoTotalMin} min`;
+                
+                const stopsList = document.getElementById('stopsList');
+                stopsList.innerHTML = '';
+                destinosOrdenados.forEach((dest, idx) => {
+                    const parcial = tramosDetalle[idx];
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>Parada ${idx + 1}: ${dest.nombre}</strong><div class="details"><span>📏 ${parcial.dist_km} km</span><span>️ ${parcial.tiempo_min} min</span></div>`;
+                    stopsList.appendChild(li);
+                });
+                
+                // Limpiar marcadores anteriores (excepto el de origen)
+                markersDestinos.forEach(m => map.removeLayer(m.marker));
+                markersDestinos = [];
+                if (map) { 
+                    map.eachLayer(layer => { 
+                        if (layer instanceof L.Polyline && !(layer instanceof L.TileLayer)) map.removeLayer(layer); 
+                        if (layer instanceof L.Marker && layer !== markerOrigen) map.removeLayer(layer);
+                    }); 
+                }
+                
+                const latlngs = roadCoordsLonLat.map(pt => [pt[1], pt[0]]);
+                const polyline = L.polyline(latlngs, { color: '#2b78e4', weight: 6, opacity: 0.85 }).addTo(map);
+                
+                // Marcador ROJO para el origen
+                const origenPopup = `<b>🏢 ${centro} (Salida)</b><br>${origenData.direccion || 'Coordenadas: ' + coordsOrigen[1].toFixed(5) + ', ' + coordsOrigen[0].toFixed(5)}`;
+                L.marker([coordsOrigen[1], coordsOrigen[0]], { icon: iconoOrigenRojo }).addTo(map).bindPopup(origenPopup);
+                
+                // Marcadores AZULES para los destinos
+                destinosOrdenados.forEach((dest, idx) => {
+                    const parcial = tramosDetalle[idx];
+                    const marker = L.marker([dest.lat, dest.lon], { icon: iconoDestinoAzul }).addTo(map)
+                        .bindPopup(`<b>📍 Parada ${idx + 1}: ${dest.nombre}</b><br>Conductor: ${conductor}<br>Vehículo: ${placa}<br><hr style="margin:4px 0"><b>Distancia Parcial:</b> ${parcial.dist_km} km<br><b>Tiempo Parcial:</b> ${parcial.tiempo_min} min`);
+                    markersDestinos.push({ id: dest.id || (destinoIdCounter + idx + 1000), marker });
+                });
+                
+                map.fitBounds(polyline.getBounds());
+                setTimeout(() => map.invalidateSize(), 100);
+                
+            } catch (error) {
+                loading.classList.remove('active');
+                btnCalcular.disabled = false;
+                errorMessage.textContent = `❌ ${error.message}`;
+                errorMessage.classList.add('active');
+                console.error('Error:', error);
+            }
+        }
+        
+        // ============ EXPORTACIÓN HTML ============
+        function exportarMapaHTML() {
+            if (!lastRouteData) { showToast('⚠️ Primero debe calcular una ruta', '#ffc107'); return; }
+            const d = lastRouteData;
+            const safeName = d.conductor.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const fileName = `Ruta_Parciales_Topo_${safeName}.html`;
+            const direccionOrigenHtml = d.direccionOrigen ? `<div class="info-item"><b>Dirección Origen:</b> ${escapeHtml(d.direccionOrigen)}</div>` : '';
+            
+            let markersJS = `
+            var iconoOrigen = L.divIcon({
+                className: 'origen-marker',
+                html: '<div style="background:#dc3545;width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid white;box-shadow:0 0 8px rgba(220,53,69,0.8);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);color:white;font-size:14px;font-weight:bold;">🏢</span></div>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+            var iconoDestino = L.divIcon({
+                className: 'destino-marker',
+                html: '<div style="background:#2b78e4;width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid white;box-shadow:0 0 6px rgba(43,120,228,0.7);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);color:white;font-size:12px;font-weight:bold;">📍</span></div>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 28],
+                popupAnchor: [0, -28]
+            });
+            L.marker([${d.coordsOrigen[1]}, ${d.coordsOrigen[0]}], {icon: iconoOrigen}).addTo(map)
+                .bindPopup("<b>🏢 ${escapeHtml(d.centro)} (Salida)</b><br>${d.direccionOrigen ? escapeHtml(d.direccionOrigen) : 'Coordenadas: ' + d.coordsOrigen[1].toFixed(5) + ', ' + d.coordsOrigen[0].toFixed(5)}");
+            `;
+            
+            let secuenciaHTML = '';
+            d.destinosOrdenados.forEach((dest, idx) => {
+                const parcial = d.tramosDetalle[idx];
+                secuenciaHTML += `<li><b>Parada ${idx + 1} (${escapeHtml(dest.nombre)}):</b> Tramo: ${parcial.dist_km} km | Tiempo: ${parcial.tiempo_min} min</li>`;
+                markersJS += `
+            L.marker([${dest.lat}, ${dest.lon}], {icon: iconoDestino}).addTo(map)
+                .bindPopup("<b>📍 Parada ${idx + 1}: ${escapeHtml(dest.nombre)}</b><br>" +
+                           "Conductor: ${escapeHtml(d.conductor)}<br>" +
+                           "Vehículo: ${escapeHtml(d.placa)}<br>" +
+                           "<hr style='margin:4px 0'>" +
+                           "<b>Distancia Parcial:</b> ${parcial.dist_km} km<br>" +
+                           "<b>Tiempo Parcial:</b> ${parcial.tiempo_min} min");
+                `;
+            });
+            const latlngsStr = JSON.stringify(d.roadCoordsLonLat.map(pt => [pt[1], pt[0]]));
+            const htmlContent = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ruta Farmacéutica - ${escapeHtml(d.conductor)}</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><style>body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f4f6f9; }.header { background: linear-gradient(135deg, #1a365d 0%, #2b78e4 100%); color: white; padding: 18px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }.header h2 { margin: 0 0 5px 0; font-size: 22px; }.header p { margin: 0; font-size: 13px; opacity: 0.95; }.card { background: white; padding: 15px; margin: 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }.info-item { margin: 4px 10px; font-size: 14px; }.info-item b { color: #495057; }.info-item.total { color: #2b78e4; font-weight: bold; }.info-item.tiempo { color: #d9381e; font-weight: bold; }.secuencia { background: #fff; padding: 15px 20px; margin: 0 12px 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }.secuencia b { color: #2c3e50; font-size: 14px; }.secuencia ul { margin: 10px 0 0 0; padding-left: 0; display: flex; flex-wrap: wrap; gap: 10px; list-style-type: none; }.secuencia li { background: #f8f9fa; padding: 8px 12px; border-radius: 6px; border-left: 3px solid #2b78e4; font-size: 13px; }.secuencia li b { color: #2b78e4; }#map { height: 60vh; width: 100%; }.footer { background: #2c3e50; color: white; padding: 10px; text-align: center; font-size: 11px; }.meta { background: #e9ecef; padding: 8px 15px; margin: 0 12px; border-radius: 6px; font-size: 11px; color: #6c757d; display: flex; justify-content: space-between; flex-wrap: wrap; }</style></head><body><div class="header"><h2> Sistema de Distribución Farmacéutica</h2><p>Análisis Topográfico y Tiempos Parciales - Control Logístico Avanzado</p></div><div class="meta"><span><b> Fecha:</b> ${d.fecha}</span><span><b>🗺️ Topografía:</b> ${escapeHtml(d.topografiaText)}</span><span><b>⚡ Vel. Efectiva:</b> ${d.velEfectivaKmh} km/h</span></div><div class="card"><div class="info-item"><b>🏢 Origen:</b> ${escapeHtml(d.centro)}</div>${direccionOrigenHtml}<div class="info-item"><b>Vehículo:</b> ${escapeHtml(d.vehiculoText)}</div><div class="info-item"><b>Conductor:</b> ${escapeHtml(d.conductor)}</div><div class="info-item"><b>Placa/ID:</b> ${escapeHtml(d.placa)}</div><div class="info-item total"><b>Distancia Total:</b> ${d.distVialKm} km</div><div class="info-item tiempo"><b>Tiempo Total:</b> ${d.tiempoTotalMin} min</div></div><div class="secuencia"><b>📍 Detalle de Tiempos y Distancias Parciales:</b><ul>${secuenciaHTML}</ul></div><div id="map"></div><div class="footer">Mapa interactivo generado automáticamente • Datos viales: OSRM • Mapa: OpenStreetMap France</div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><script>var map = L.map('map').setView([${d.coordsOrigen[1]}, ${d.coordsOrigen[0]}], 13);L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap France | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);var latlngs = ${latlngsStr};var polyline = L.polyline(latlngs, {color: '#2b78e4', weight: 6, opacity: 0.85}).addTo(map);${markersJS}map.fitBounds(polyline.getBounds());<\/script></body></html>`;
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`✅ Mapa exportado: ${fileName}`, '#28a745');
+        }
+        
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+        function showToast(message, color = '#28a745') { const toast = document.getElementById('toast'); toast.textContent = message; toast.style.background = color; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
+        
+        // ============ EVENT LISTENERS ============
+        document.getElementById('btnCalcular').addEventListener('click', procesarRuta);
+        document.getElementById('btnExportar').addEventListener('click', exportarMapaHTML);
+        document.getElementById('btnBuscar').addEventListener('click', buscarDireccion);
+        document.getElementById('btnBuscarOrigen').addEventListener('click', buscarDireccionOrigen);
+        document.getElementById('btnClickMode').addEventListener('click', toggleClickMode);
+        document.getElementById('btnClickModeOrigen').addEventListener('click', toggleClickModeOrigen);
+        
+        document.getElementById('inputDireccion').addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); buscarDireccion(); } });
+        document.getElementById('inputDireccionOrigen').addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); buscarDireccionOrigen(); } });
+        document.getElementById('modalConfirm').addEventListener('click', confirmarDestinoModal);
+        document.getElementById('modalCancel').addEventListener('click', cancelarDestinoModal);
+        document.getElementById('modalNombre').addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); confirmarDestinoModal(); } });
+        document.getElementById('modalOrigenConfirm').addEventListener('click', confirmarOrigenModal);
+        document.getElementById('modalOrigenCancel').addEventListener('click', cancelarOrigenModal);
+        document.getElementById('modalOrigenNombre').addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); confirmarOrigenModal(); } });
+        
+        document.getElementById('destinos').addEventListener('input', function() {
+            if (destinosAgregados.length > 0) {
+                const currentText = this.value;
+                const expectedText = destinosAgregados.map(d => `${d.nombre} | ${d.lon.toFixed(4)}, ${d.lat.toFixed(4)}`).join('\n');
+                if (currentText !== expectedText) { destinosAgregados = []; markersDestinos.forEach(m => map.removeLayer(m.marker)); markersDestinos = []; renderizarListaDestinos(); }
+            }
+        });
+        document.getElementById('centroNombre').addEventListener('input', function() { origenData.nombre = this.value.trim(); });
+        
+        document.getElementById('btnLimpiar').addEventListener('click', function() {
+            document.getElementById('centroNombre').value = 'Centro de Distribución Principal';
+            document.getElementById('inputDireccionOrigen').value = '';
+            document.getElementById('destinos').value = '';
+            document.getElementById('inputDireccion').value = '';
+            document.getElementById('vehiculo').value = '2';
+            document.getElementById('topografia').value = '1';
+            document.getElementById('conductor').value = 'Carlos Mendoza';
+            document.getElementById('placa').value = 'ABC-1234';
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('errorMessage').classList.remove('active');
+            document.getElementById('btnExportar').disabled = true;
+            document.getElementById('origenAddressDisplay').classList.remove('active');
+            lastRouteData = null;
+            origenData = { nombre: "Centro de Distribución Principal", direccion: null, lon: -72.2241, lat: 7.7745 };
+            document.getElementById('origenCoordsDisplay').textContent = '-72.2241, 7.7745';
+            if (markerOrigen) { map.removeLayer(markerOrigen); markerOrigen = null; }
+            destinosAgregados = [];
+            markersDestinos.forEach(m => map.removeLayer(m.marker));
+            markersDestinos = [];
+            renderizarListaDestinos();
+            if (clickModeActive) toggleClickMode();
+            if (clickModeOrigenActive) toggleClickModeOrigen();
+            if (map) { map.eachLayer(layer => { if (layer instanceof L.Polyline && !(layer instanceof L.TileLayer)) map.removeLayer(layer); if (layer instanceof L.Marker) map.removeLayer(layer); }); }
+        });
+        
+        window.addEventListener('load', () => {
+            map = L.map('map').setView([7.7745, -72.2241], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap France | &copy; OpenStreetMap contributors' }).addTo(map);
+            map.on('click', onMapClick);
+            // Marcador ROJO para el origen inicial
+            markerOrigen = L.marker([7.7745, -72.2241], { icon: iconoOrigenRojo }).addTo(map)
+                .bindPopup('<b> Centro de Distribución Principal</b><br>Coordenadas: 7.7745, -72.2241');
+            const destinosIniciales = [
+                { nombre: "Farmacia San Jose", lon: -72.2520, lat: 7.8931 },
+                { nombre: "Hospital Central", lon: -72.2350, lat: 7.7850 },
+                { nombre: "Clinica Los Andes", lon: -72.2100, lat: 7.7600 }
+            ];
+            destinosIniciales.forEach(d => {
+                const id = ++destinoIdCounter;
+                destinosAgregados.push({ ...d, id });
+                // Marcador AZUL para destinos iniciales
+                const marker = L.marker([d.lat, d.lon], { icon: iconoDestinoAzul }).addTo(map)
+                    .bindPopup(`<b>📍 ${d.nombre}</b><br>Lat: ${d.lat.toFixed(5)}<br>Lon: ${d.lon.toFixed(5)}`);
+                markersDestinos.push({ id, marker });
+            });
+            renderizarListaDestinos();
+            sincronizarTextarea();
+        });
+    </script>
+</body>
+</html>
